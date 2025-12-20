@@ -20,11 +20,3 @@ output "vpc_instance_tenancy" {
   description = "Tenancy of instances spin up within VPC"
   value       = try(aws_vpc.this.instance_tenancy, null)
 }
-
-#--------------------------------------------------
-# Expose AWS_DHCP_Options Attributes
-#--------------------------------------------------
-output "dhcp_options_id" {
-  description = "The ID of the DHCP options"
-  value       = coalesce(try(aws_vpc_dhcp_options.this.id, null), "No Custom AWS_DHCP_Options Defined")
-}
