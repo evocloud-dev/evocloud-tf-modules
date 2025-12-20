@@ -26,5 +26,5 @@ output "vpc_instance_tenancy" {
 #--------------------------------------------------
 output "dhcp_options_id" {
   description = "The ID of the DHCP options"
-  value       = try(aws_vpc_dhcp_options.this.id, null)
+  value       = coalesce(try(aws_vpc_dhcp_options.this.id, null), "No Custom AWS_DHCP_Options Defined")
 }

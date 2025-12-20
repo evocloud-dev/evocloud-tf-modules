@@ -38,7 +38,7 @@ spec:
           name: aws-credentials
 ```
 
-## Example Usage with non-default DHCP_OPTIONS
+## Example Usage with custom DHCP_OPTIONS
 
 ```yaml
 ---
@@ -57,6 +57,18 @@ spec:
     tags:
       Environment: Dev
       Name: main-vpc
+    dhcp_options:
+      domain_name: "evocloud.gov"
+      domain_name_servers:
+        - "10.10.20.5"
+        - "10.10.20.10"
+        - "AmazonProvidedDNS"
+      ntp_servers:
+        - "10.10.20.5"
+        - "10.10.20.10"
+      tags:
+        Environment: Dev
+        Name: main-vpc-dhcp-option9
   sourceRef:
     kind: OCIRepository
     name: evocloud-tf-modules-aws
@@ -70,8 +82,8 @@ spec:
   runnerPodTemplate:
     spec:
       envFrom:
-      - secretRef:
-          name: aws-credentials
+        - secretRef:
+            name: aws-credentials
 ```
 
 ## Argument Reference
