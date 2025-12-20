@@ -2,7 +2,7 @@
 
 Creates an AWS VPC resource.
 
-## Example Basic Usage
+## Basic Example: Create a basic VPC
 
 ```yaml
 ---
@@ -38,7 +38,7 @@ spec:
           name: aws-credentials
 ```
 
-## Example Usage with custom DHCP_OPTIONS
+## Advanced Example: Create a VPC with custom DHCP_OPTIONS
 
 ```yaml
 ---
