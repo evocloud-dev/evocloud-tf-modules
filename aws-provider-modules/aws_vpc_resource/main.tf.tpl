@@ -71,4 +71,12 @@ resource "aws_vpc_dhcp_options_association" "this" {
   vpc_id          = aws_vpc.this.id
   dhcp_options_id = aws_vpc_dhcp_options.this.id
 }
+
+#--------------------------------------------------
+# Expose AWS_DHCP_Options Attributes
+#--------------------------------------------------
+output "dhcp_options_id" {
+  description = "The ID of the DHCP options"
+  value       = try(aws_vpc_dhcp_options.this.id, null)
+}
 {{- end }}
