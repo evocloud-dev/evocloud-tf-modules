@@ -87,7 +87,7 @@ This resource supports the following arguments referenced [here](https://registr
 This resource supports the following attributes referenced [here](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/subnet#attribute-reference)
 
 ## References
-- [Terraform AWS_VPC](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/subnet)
+- [Terraform AWS_SUBNET](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/subnet)
 - [AWS_VPC Module](https://github.com/terraform-aws-modules/terraform-aws-vpc/tree/master)
 
 ## Authors
