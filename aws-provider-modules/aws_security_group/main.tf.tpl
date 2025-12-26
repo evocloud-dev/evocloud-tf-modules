@@ -23,7 +23,7 @@ resource "aws_security_group" "this" {
 
   # Egress rules
   dynamic "egress" {
-    for_each = each.value.egress_rules != null && length(each.value.egress_rules) > 0 ? each.value.egress_rules : (
+    for_each = each.value.egress_rules != null ? each.value.egress_rules : (
       var.values.enable_default_egress ? [{
         from_port = 0
         to_port   = 0
