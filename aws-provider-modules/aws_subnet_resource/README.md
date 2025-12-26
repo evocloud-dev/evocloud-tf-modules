@@ -2,6 +2,10 @@
 
 Creates an AWS Subnet resource.
 
+## Depends On:
+
+- `aws_vpc`
+
 ## Basic Example: Create 1 subnet in all 3 Availability Zones
 
 ```yaml
@@ -16,11 +20,14 @@ spec:
   values:
     VPC_ID: "vpc-0bdcab4d22b8c8975" #Can reference value from aws_vpc output
     VPC_CIDR_BLOCK: "10.10.0.0/16"  #Can reference value from aws_vpc output
-    desired_subnet_names:
-      - "admin-subnet"
-    subnet_number:
-      admin-subnet: 10
-    subnet_newbits: 8
+    subnets_configs: [
+      {
+        subnet_name: "admin-subnet",
+        network_tier: "private",
+        subnet_number: 10,
+        subnet_newbits: 8
+      }
+    ]
   sourceRef:
     kind: OCIRepository
     name: evocloud-tf-modules-aws
@@ -52,15 +59,26 @@ spec:
   values:
     VPC_ID: "vpc-0bdcab4d22b8c8975" #Can reference value from aws_vpc output
     VPC_CIDR_BLOCK: "10.10.0.0/16"  #Can reference value from aws_vpc output
-    desired_subnet_names:
-      - "admin-subnet"
-      - "backend-subnet"
-      - "dmz-subnet"
-    subnet_number:
-      admin-subnet: 10
-      backend-subnet: 20
-      dmz-subnet: 30
-    subnet_newbits: 8
+    subnets_configs: [
+      {
+        subnet_name: "admin-subnet",
+        network_tier: "private", #private or public
+        subnet_number: 10,
+        subnet_newbits: 8
+      },
+      {
+        subnet_name: "backend-subnet",
+        network_tier: "private", #private or public
+        subnet_number: 20,
+        subnet_newbits: 8
+      },
+      {
+        subnet_name: "dmz-subnet",
+        network_tier: "public", #private or public
+        subnet_number: 30,
+        subnet_newbits: 8
+      }
+    ]
   sourceRef:
     kind: OCIRepository
     name: evocloud-tf-modules-aws
