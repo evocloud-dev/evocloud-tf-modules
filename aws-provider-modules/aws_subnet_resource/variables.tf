@@ -2,11 +2,33 @@ variable "values" {
   type = object({
     VPC_ID                = optional(string)
     VPC_CIDR_BLOCK        = optional(string)
-    desired_subnet_names  = optional(list(string))
-    subnet_number         = optional(map(number))
-    subnet_newbits        = optional(number)
-    #tags                  = optional(map(string))
+
+    subnets_configs       = optional(list(object({
+      subnet_name     = string
+      network_tier    = string
+      subnet_number   = number
+      subnet_newbits  = number
+    })))
+
   })
+
+  #Variable validation
+  validation {
+    condition = length(var.values.subnets_configs) >= 1
+    error_message = "At least one subnet configuration must be defined."
+  }
+
+  validation {
+    condition = alltrue([
+      for subnet in var.values.subnets_configs : contains(["public", "private"], subnet.network_tier)
+    ])
+    error_message = "Subnets must have network_tier set to public or private."
+  }
+
+  validation {
+    condition = length(distinct([for subnet in var.values.subnets_configs : subnet.subnet_name])) == length(var.values.subnets_configs)
+    error_message = "Subnets must have a unique subnet_name."
+  }
 }
 
 # Variables in original terraform main.tf
@@ -20,12 +42,6 @@ variable "values" {
 #  description = "VPC CIDR Block (e.g: 10.10.0.0/16)"
 #  type = string
 #  default = "10.10.0.0/16"
-#}
-
-#variable "desired_subnet_names" {
-#  description = "List of subnets to create"
-#  type = list(string)
-#  default = ["admin-subnet", "backend-subnet", "dmz-subnet"]
 #}
 
 #variable "subnet_number" {

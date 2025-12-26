@@ -13,13 +13,15 @@ locals {
   azs = slice(sort(data.aws_availability_zones.available.names), 0, 3)
   # A flat list of all desired subnets
   subnets = flatten([
-    for subnet in var.values.desired_subnet_names : [
+    for subnet in var.values.subnets_configs : [
       for idx, az in local.azs : {
-        key = "${subnet}-${az}"
-        subnet_name = subnet
+        key = "${subnet.subnet_name}-${az}"
+        subnet_name = subnet.subnet_name
+        network_tier = subnet.network_tier
         avail_zone = az
         az_index = idx #0, 1, 2
-        subnet_num = var.values.subnet_number[subnet] + idx
+        subnet_num = subnet.subnet_number + idx
+        subnet_bits = subnet.subnet_newbits
       }
     ]
   ])
@@ -34,11 +36,12 @@ resource "aws_subnet" "this" {
   for_each = local.subnet_map
 
   vpc_id     = var.values.VPC_ID
-  cidr_block = cidrsubnet(var.values.VPC_CIDR_BLOCK, var.values.subnet_newbits, each.value.subnet_num)
+  cidr_block = cidrsubnet(var.values.VPC_CIDR_BLOCK, each.value.subnet_bits, each.value.subnet_num)
   availability_zone = each.value.avail_zone
 
   tags = {
     Name = each.key
+    NetworkTier = each.value.network_tier
   }
 
   #Resource Lifecycle Management
