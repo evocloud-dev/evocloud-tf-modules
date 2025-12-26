@@ -73,33 +73,35 @@ spec:
   values:
     VPC_ID: "vpc-0bdcab4d22b8c8975" #Can reference value from aws_vpc output
     security_groups: {
-      name: "main-vpc-sg",
-      description: "Security Group Attached to the VPC",
-      ingress_rules: [
-        {
-          from_port: 22,
-          to_port: 22,
-          protocol: "tcp",
-          cidr_blocks: ["0.0.0.0/0"],
-          description: "SSH Application Access"
-        },
-        {
-          from_port: 30000,
-          to_port: 32767,
-          protocol: "tcp",
-          cidr_blocks: ["0.0.0.0/0"],
-          description: "Kubernetes default NodePort range"
-        }
-      ],
-      egress_rules: [
-        {
-          from_port: 0,
-          to_port: 0,
-          protocol: "-1",
-          cidr_blocks: ["0.0.0.0/0"],
-          description: "Allow all outbound (default)"             
-        }
-      ]
+      main-vpc-sg: {                 
+        name: "main-vpc-sg",
+        description: "Security Group Attached to the VPC",
+        ingress_rules: [
+          {
+            from_port: 22,
+            to_port: 22,
+            protocol: "tcp",
+            cidr_blocks: ["0.0.0.0/0"],
+            description: "SSH Application Access"
+          },
+          {
+            from_port: 30000,
+            to_port: 32767,
+            protocol: "tcp",
+            cidr_blocks: ["0.0.0.0/0"],
+            description: "Kubernetes default NodePort range"
+          }
+        ],
+        egress_rules: [
+          {
+            from_port: 0,
+            to_port: 0,
+            protocol: "-1",
+            cidr_blocks: ["0.0.0.0/0"],
+            description: "Allow all outbound (default)"             
+          }
+        ]
+      }
     } 
   sourceRef:
     kind: OCIRepository
