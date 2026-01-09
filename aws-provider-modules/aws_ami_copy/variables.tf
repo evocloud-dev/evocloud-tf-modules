@@ -1,13 +1,13 @@
 variable "ami_owner_id" {
   description = "Base AMI Owner ID"
   type = string
-  default = "540369536782"
+  default = "540036508848"
 }
 
 variable "ami_name_param" {
   description = "Base AMI Name Parameter for filtering"
   type = string
-  default = "talos-"
+  default = "talos-v1.12.0-us-east-2-amd64"
 }
 
 variable "ami_image_version" {
@@ -27,3 +27,5 @@ variable "ami_image_region" {
   type = string
   default = "us-east-2"
 }
+
+#tags must be a variable

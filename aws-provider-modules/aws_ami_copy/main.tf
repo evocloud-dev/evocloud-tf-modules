@@ -9,7 +9,7 @@ data "aws_ami" "this" {
 
   filter {
     name = "name"
-    values = ["${var.ami_name_param}-${var.ami_image_version}-*"]
+    values = [var.ami_name_param]
   }
   filter {
     name = "architecture"
