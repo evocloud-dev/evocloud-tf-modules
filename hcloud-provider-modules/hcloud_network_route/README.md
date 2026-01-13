@@ -19,7 +19,7 @@ spec:
     nat_host_ip: "10.10.30.5"
   sourceRef:
     kind: OCIRepository
-    name: evocloud-tf-modules
+    name: evocloud-tf-modules-hcloud
   approvePlan: auto
   retryInterval: 10s
   interval: 2m
