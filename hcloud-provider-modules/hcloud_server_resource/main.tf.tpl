@@ -2,11 +2,49 @@
 # Local for cloud-init content
 #--------------------------------------------------
 locals {
-  cloudinit_tpl_path = {
-    "nat-gateway-vm"    = "${path.module}/templates/gateway-vm.yaml.tpl"
-    "nat-private-vm"    = "${path.module}/templates/private-vm.yaml.tpl"
-    "minimal-base-vm"   = "${path.module}/templates/base-vm.yaml.tpl"
-  }
+  cloud_init_gateway = <<-EOF
+    #cloud-config
+    packages:
+      - iptables
+      - iptables-services
+
+    write_files:
+      - path: /etc/NetworkManager/dispatcher.d/ifup-local
+        content: |
+          #!/bin/sh
+
+          /bin/echo 1 > /proc/sys/net/ipv4/ip_forward
+          /sbin/iptables -t nat -A POSTROUTING -s '10.0.0.0/16' -o eth0 -j MASQUERADE
+        permissions: '0755'
+
+    runcmd:
+      - reboot
+  EOF
+
+  cloud_init_nat_vm = <<-EOF
+     #cloud-config
+     write_files:
+       - path: /etc/NetworkManager/dispatcher.d/ifup-local
+         content: |
+           #!/bin/sh
+
+           nm-online -q --timeout=30
+           if ! ip route show default | grep -q "via 10.0.0.1"; then
+             /sbin/ip route add default via 10.0.0.1
+           fi
+         permissions: '0755'
+
+       - path: /etc/systemd/resolved.conf
+           content: |
+             [Resolve]
+             DNS=185.12.64.2 185.12.64.1
+             FallbackDNS=8.8.8.8
+           append: true
+
+     runcmd:
+       - dnf remove -y hc-utils
+       - reboot
+  EOF
 }
 
 ################################################################################
@@ -40,11 +78,10 @@ resource "hcloud_server" "this" {
   firewall_ids = each.value.SECURITY_GROUP_IDS
   {{- end }}
 
-  {{- if $.Values.hcloud_servers.host_user_data_tpl }}
-  user_data = templatefile(local.cloudinit_tpl_path[each.value.server_role], {
-    var1 = something
-    var2 = something
-  })
+  {{- if $.Values.hcloud_servers.enable_gateway_config }}
+  user_data = local.cloud_init_gateway
+  {{- else }}
+  user_data = local.cloud_init_nat_vm
   {{- end }}
 
   # no space separator in the key or value
