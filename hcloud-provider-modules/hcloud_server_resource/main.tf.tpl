@@ -9,7 +9,7 @@ resource "hcloud_server" "this" {
   image       = each.value.machine_image
   location    = each.value.zone_location
 
-  ssh_keys    = ["${each.value.host_ssh_key}"]
+  ssh_keys    = ["${each.value.HOST_SSH_KEY}"]
 
   network {
     network_id = each.value.VPC_ID
