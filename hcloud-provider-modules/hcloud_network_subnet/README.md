@@ -14,8 +14,8 @@ metadata:
 spec:
   path: hcloud_network_subnet
   values:
-    VPC_ID: 11824253
-    VPC_CIDR_BLOCK: "10.10.0.0/16"
+    VPC_ID: 11824253 #Can reference value from hcloud_network_vpc output
+    VPC_CIDR_BLOCK: "10.10.0.0/16" #Can reference value from hcloud_network_vpc output
     subnets_configs: [
       {
         subnet_name: "admin-subnet",
@@ -54,8 +54,8 @@ metadata:
 spec:
   path: hcloud_network_subnet
   values:
-    VPC_ID: 11824253
-    VPC_CIDR_BLOCK: "10.10.0.0/16"
+    VPC_ID: 11824253 #Can reference value from hcloud_network_vpc output
+    VPC_CIDR_BLOCK: "10.10.0.0/16" #Can reference value from hcloud_network_vpc output
     subnets_configs: [
       {
         subnet_name: "admin-subnet",

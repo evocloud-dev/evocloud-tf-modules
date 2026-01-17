@@ -14,7 +14,7 @@ metadata:
 spec:
   path: hcloud_network_route
   values:
-    VPC_ID: 11824253
+    VPC_ID: 11824253 #Can reference value from hcloud_network_vpc output
     destination_net_cidr: "0.0.0.0/0"
     nat_host_ip: "10.10.30.5"
   sourceRef:
