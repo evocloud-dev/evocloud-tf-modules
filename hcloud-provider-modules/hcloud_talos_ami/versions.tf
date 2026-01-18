@@ -18,5 +18,11 @@ terraform {
       source = "hashicorp/tls"
       version = "< 5.0.0"
     }
+
+    #Timer
+    time = {
+      source = "hashicorp/time"
+      version = "0.13.1"
+    }
   }
 }

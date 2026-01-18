@@ -10,6 +10,10 @@ provider "tls" {
   # Configuration options
 }
 
+provider "time" {
+  # Configuration options
+}
+
 #--------------------------------------------------
 # Tfstate Remote State Storage
 #--------------------------------------------------
