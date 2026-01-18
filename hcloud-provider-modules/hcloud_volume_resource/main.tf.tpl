@@ -7,6 +7,7 @@ resource "hcloud_volume" "this" {
   name    = each.value.volume_name
   size    = each.value.volume_size
   format  = each.value.disk_format
+  location = each.value.zone_location
 
   # no space separator in the key or value
   labels = merge(
@@ -33,7 +34,7 @@ data "hcloud_server" "this" {
 resource "hcloud_volume_attachment" "this" {
   for_each  = var.values.extra_volumes
 
-  server_id = data.hcloud_server.this[each.value.attach_to].id
-  volume_id = hcloud_volume.this[each.value.attach_to].id
+  server_id = data.hcloud_server.this[each.key].id
+  volume_id = hcloud_volume.this[each.key].id
   automount = each.value.automount
 }

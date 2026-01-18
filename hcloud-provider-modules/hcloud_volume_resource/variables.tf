@@ -1,12 +1,13 @@
 variable "values" {
   type = object({
     extra_volumes    = optional(map(object({
-      volume_name     = string
-      volume_size     = number
-      disk_format     = string
-      attach_to       = string
-      automount       = optional(bool, true)
-      tags            = optional(map(string))
+      volume_name    = string
+      volume_size    = number
+      disk_format    = optional(string, "xfs")
+      attach_to      = string
+      zone_location  = string
+      automount      = optional(bool, true)
+      tags           = optional(map(string))
     })))
   })
 
