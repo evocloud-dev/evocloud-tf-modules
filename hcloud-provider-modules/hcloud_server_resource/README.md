@@ -63,12 +63,12 @@ spec:
     hcloud_servers: {
       public-vm01: {
         name: "public-vm01",
-        VPC_ID: 11833724,
+        VPC_ID: 11833724, #Can reference value from hcloud_network_vpc output
         compute_flavor: "cx23",
         machine_image: "rocky-8",
         zone_location: "hel1",
-        HOST_SSH_KEY: "iac-automation-sa", #Can be the hcloud_ssh_key id or name
-        enable_public_ip: true, #when the server_role is cloudinit-gateway, enable_public_ip is automatically set to true
+        HOST_SSH_KEY: "iac-automation-sa", #Can reference the hcloud_ssh_key id or name from the hcloud_ssh_key resource
+        enable_public_ip: true
       }
     }
   sourceRef:
