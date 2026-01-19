@@ -7,6 +7,25 @@ This repository contains terraform/tofu modules for deploying infrastructure res
 - EvoCloud evok8s cluster
 - kubectl CLI
 
+## Setup the OCI Repository
+
+The tf-modules are contained in an OCI image, and we need to create a OCIRepository to reference it.
+
+```yaml
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: OCIRepository
+metadata:
+  name: evocloud-tf-modules-hcloud
+  namespace: flux-system
+spec:
+  interval: 1h
+  provider: generic
+  ref:
+    tag: 0.1.0
+  timeout: 60s
+  url: oci://ghcr.io/evocloud-dev/oci/evocloud-tf-modules-hcloud
+```
+
 ## Setup EvoCloud with Hetzner
 
 To interact with Hetzner, we need to create a Kubernetes secret resource that contains the HCLOUD Token:
