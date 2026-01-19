@@ -1,7 +1,26 @@
+
+#--------------------------------------------------
+# Generate SSH Key Pair
+#--------------------------------------------------
+resource "tls_private_key" "talos_builder" {
+  algorithm = "ED25519" #Recommended - more secure and faster
+}
+
+#--------------------------------------------------
+# HCLOUD_SSH_KEY Resource
+#--------------------------------------------------
+resource "hcloud_ssh_key" "talos_builder" {
+  name       = "talos_builder_ssh"
+  public_key = tls_private_key.talos_builder.public_key_openssh
+
+  labels = {
+      "managed-by"  = "EvoCloud"
+  }
+}
+
 ################################################################################
 # HCLOUD Talos AMI Resource
 #############################################################################
-
 resource "hcloud_server" "talos_ami_builder" {
   name        = "talos-ami-builder-v${var.values.talos_version}"
   server_type = var.values.compute_flavor
@@ -9,7 +28,7 @@ resource "hcloud_server" "talos_ami_builder" {
   location    = var.values.zone_location
 
   rescue      = "linux64" #rescue mode needed to overwrite the base image
-  ssh_keys = [] #no ssh keys needed since we are in rescue mode
+  ssh_keys = [hcloud_ssh_key.talos_builder.id] #no ssh keys needed since we are in rescue mode
 
   public_net {
     ipv4_enabled = true
@@ -21,6 +40,7 @@ resource "hcloud_server" "talos_ami_builder" {
       host        = self.ipv4_address
       type        = "ssh"
       user        = "root"
+      private_key = tls_private_key.talos_builder.private_key_openssh
       timeout     = "10m"
     }
 
@@ -33,8 +53,11 @@ resource "hcloud_server" "talos_ami_builder" {
   }
 }
 
+
+#Give time for builder vm to fully shutdown
 resource "time_sleep" "timer" {
-  create_duration = "60s"
+  create_duration = "40s"
+  depends_on = [hcloud_server.talos_ami_builder]
 }
 
 #Create AMI from Instance Snapshot
@@ -49,4 +72,8 @@ resource "hcloud_snapshot" "talos_ami" {
     "os"          = "TalosLinux"
     "arch"        = "amd64"
   }
+
+  #lifecycle {
+  #  prevent_destroy = true
+  #}
 }
