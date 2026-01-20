@@ -56,7 +56,7 @@ resource "hcloud_server" "talos_ami_builder" {
 
 #Give time for builder vm to fully shutdown
 resource "time_sleep" "timer" {
-  create_duration = "40s"
+  create_duration = "30s"
   depends_on = [hcloud_server.talos_ami_builder]
 }
 
