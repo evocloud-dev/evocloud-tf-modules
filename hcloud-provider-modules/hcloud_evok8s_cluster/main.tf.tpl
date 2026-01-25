@@ -1,15 +1,49 @@
+#--------------------------------------------------
+# Set locals for better variable manipulation
+#--------------------------------------------------
+locals {
+  # A flat list of all desired control_plane_nodes
+  control_plane_nodes = {
+    for cp_node in flatten([
+      for k, v in var.values.evok8s_clusters : [
+        for i in range(v.control_compute_count) : {
+          key           = "${v.vm_name_prefix}-cp0${i + 1}"
+          index         = i
+          cluster_key   = k
+          cluster_data  = v
+        }
+      ]
+    ]) : cp_node.key => cp_node
+  }
+
+  # A flat list of all desired worker_nodes
+  worker_nodes = {
+    for wk_node in flatten([
+      for k, v in var.values.evok8s_clusters : [
+        for i in range(v.worker_compute_count) : {
+          key           = "${v.vm_name_prefix}-wk0${i + 1}"
+          index         = i
+          cluster_key   = k
+          cluster_data  = v
+        }
+      ]
+    ]) : wk_node.key => wk_node
+  }
+
+}
+
 ################################################################################
-# HCLOUD_SERVER Resource
+# HCLOUD_SERVER Controlplane Resource
 #############################################################################
-resource "hcloud_server" "this" {
-  for_each = var.values.evok8s_aio
+resource "hcloud_server" "controlplane" {
+  for_each = local.control_plane_nodes
 
-  name        = each.value.vm_name
-  server_type = each.value.compute_flavor
-  image       = each.value.machine_image
-  location    = each.value.zone_location
+  name        = each.value.key
+  server_type = each.value.cluster_data.control_compute_flavor
+  image       = each.value.cluster_data.MACHINE_IMAGE
+  location    = each.value.cluster_data.zone_location
 
-  #COMEBACK HERE
+  #COMEBACK HERE IF WANT TO SUPPORT PRIVATE SUBNET
   #network {
   #  network_id = each.value.VPC_ID
   #  ip         = each.value.private_ip
@@ -19,40 +53,98 @@ resource "hcloud_server" "this" {
 
   #If this block is not defined, two primary (ipv4 & ipv6) ips are auto generated.
   public_net {
-    ipv4_enabled = each.value.enable_public_ip
+    ipv4_enabled = each.value.cluster_data.enable_public_ip ? true  : false
     ipv6_enabled = false
   }
 
-  #{{- if $.Values.hcloud_servers.SECURITY_GROUP_IDS }}
-  #firewall_ids = each.value.SECURITY_GROUP_IDS
-  #{{- end }}
+  # no space separator in the key or value
+  labels = merge(
+    {
+      managed-by  = "EvoCloud"
+      cluster = each.value.cluster_key
+    },
+    {{- if $.Values.evok8s_clusters.tags }}
+    each.value.cluster_data.tags
+    {{- end }}
+  )
+
+  {{- if $.Values.evok8s_clusters.SECURITY_GROUP_IDS }}
+  firewall_ids = each.value.SECURITY_GROUP_IDS
+  {{- end }}
 
 }
 
-#--------------------------------------------------
+#############################################################################
+# HCLOUD_SERVER Worker Resource
+#############################################################################
+resource "hcloud_server" "worker" {
+  for_each = local.worker_nodes
+
+  name        = each.value.key
+  server_type = each.value.cluster_data.control_compute_flavor
+  image       = each.value.cluster_data.MACHINE_IMAGE
+  location    = each.value.cluster_data.zone_location
+
+  #COMEBACK HERE IF WANT TO SUPPORT PRIVATE SUBNET
+  #network {
+  #  network_id = each.value.VPC_ID
+  #  ip         = each.value.private_ip
+  #  #There is a bug with Terraform 1.4+ which causes the network to be detached & attached on every apply. Set alias_ips = []
+  #  alias_ips = [] #Bug: https://github.com/hetznercloud/terraform-provider-hcloud/issues/650#issuecomment-1497160625
+  #}
+
+  #If this block is not defined, two primary (ipv4 & ipv6) ips are auto generated.
+  public_net {
+    ipv4_enabled = each.value.cluster_data.enable_public_ip ? true  : false
+    ipv6_enabled = false
+  }
+
+  # no space separator in the key or value
+  labels = merge(
+    {
+      managed-by  = "EvoCloud"
+      cluster     = each.value.cluster_key
+    },
+    {{- if $.Values.evok8s_clusters.tags }}
+    each.value.cluster_data.tags
+    {{- end }}
+  )
+
+  {{- if $.Values.evok8s_clusters.SECURITY_GROUP_IDS }}
+  firewall_ids = each.value.SECURITY_GROUP_IDS
+  {{- end }}
+
+}
+
+##############################################################################
 # Configuring Talos Kubernetes Cluster
-#--------------------------------------------------
-## Generates Talos certs and bootstrap tokens - one per cluster.
+##############################################################################
+## Generate Talos certs and bootstrap tokens - one per cluster.
 resource "talos_machine_secrets" "this" {
-  for_each = var.values.evok8s_aio
+  for_each = var.values.evok8s_clusters
 }
 
 ## Generate the Talos client configuration - one per cluster
 data "talos_client_configuration" "this" {
-  for_each = var.values.evok8s_aio
+  for_each = var.values.evok8s_clusters
 
   cluster_name          = each.value.cluster_name
   client_configuration  = talos_machine_secrets.this[each.key].client_configuration
-  endpoints             = [hcloud_server.this[each.key].ipv4_address]
-  nodes                 = [hcloud_server.this[each.key].ipv4_address]
+  endpoints = [for xvalue in hcloud_server.controlplane : xvalue.ipv4_address if xvalue.labels.cluster == each.key]
+  nodes = concat(
+    [for xvalue in hcloud_server.controlplane : xvalue.ipv4_address if xvalue.labels.cluster == each.key],
+    [for xvalue in hcloud_server.worker : xvalue.ipv4_address if xvalue.labels.cluster == each.key],
+  )
 }
 
-## Generate the Controlplane configuration and instantiate the Talos Controlplane VMs
-data "talos_machine_configuration" "this" {
-  for_each = var.values.evok8s_aio
+#-----------------------------------------------------
+## Generate Talos Controlplane Machine Configuration
+#-----------------------------------------------------
+data "talos_machine_configuration" "controlplane" {
+  for_each = var.values.evok8s_clusters
 
   cluster_name       = each.value.cluster_name
-  cluster_endpoint   = "https://${hcloud_server.this[each.key].ipv4_address}:6443"
+  cluster_endpoint   = "https://${hcloud_server.controlplane["${each.value.vm_name_prefix}-cp01"].ipv4_address}:6443"
   machine_type       = "controlplane"
   machine_secrets    = talos_machine_secrets.this[each.key].machine_secrets
   talos_version      = each.value.talos_version
@@ -76,7 +168,7 @@ data "talos_machine_configuration" "this" {
           "user.max_user_namespaces" = "11255"
         }
         network = {
-          #nameservers = [var.idam_server_ip, var.idam_replica_ip, var.GCP_METADATA_NS]
+          nameservers = each.value.talos_nameservers
           interfaces = [
             {
               interface = "eth0"
@@ -84,14 +176,13 @@ data "talos_machine_configuration" "this" {
             }
           ]
         }
-
-        certSANs = [
-          hcloud_server.this[each.key].ipv4_address,
-          #google_compute_instance.talos_ctrlplane["node01"].network_interface[0].network_ip,
-        ]
-
+        certSANs = concat(
+          [for xvalue in hcloud_server.controlplane : xvalue.ipv4_address],
+          ["127.0.0.1", "localhost"],
+        )
         kubelet = {
           extraArgs = {
+            cloud-provider = "external"
             rotate-server-certificates = true
           }
           extraConfig = {
@@ -101,12 +192,15 @@ data "talos_machine_configuration" "this" {
               UserNamespacesSupport = true
               UserNamespacesPodSecurityStandards = true
             }
+            shutdownGracePeriod = "90s"
+            shutdownGracePeriodCriticalPods = "15s"
           }
         }
         features = {
           kubernetesTalosAPIAccess = {
             enabled = true
-            allowedRoles = ["os:reader"]
+            # https://docs.siderolabs.com/talos/v1.12/security/rbac
+            allowedRoles = ["os:reader", "os:etcd:backup"]
             allowedKubernetesNamespaces = ["kube-system"]
           }
         }
@@ -136,16 +230,16 @@ data "talos_machine_configuration" "this" {
           extraArgs = {
             feature-gates = "UserNamespacesSupport=true,UserNamespacesPodSecurityStandards=true"
           }
-          certSANs = [
-            hcloud_server.this[each.key].ipv4_address,
-            #google_compute_instance.talos_ctrlplane["node01"].network_interface[0].network_ip,
-          ]
+          certSANs = concat(
+            [for xvalue in hcloud_server.controlplane : xvalue.ipv4_address],
+            ["127.0.0.1", "localhost"],
+          )
         }
         network = {
           cni = {
             name = "none"
           }
-          dnsDomain = each.value.k8s_dns_domain
+          dnsDomain = each.value.cluster_domain
           podSubnets = [each.value.k8s_pod_cidr]
           serviceSubnets = [each.value.k8s_service_cidr]
         }
@@ -155,7 +249,7 @@ data "talos_machine_configuration" "this" {
         #A bug with Talos prevents discovery mechanism to work properly: https://github.com/siderolabs/talos/issues/9980
         #https://www.talos.dev/v1.9/talos-guides/discovery/
         discovery = {
-          enabled = false
+          enabled = true
           registries = {
             kubernetes = {
               disabled = false
@@ -165,7 +259,6 @@ data "talos_machine_configuration" "this" {
             }
           }
         }
-        allowSchedulingOnControlPlanes = true
         //Extra Manifests
         extraManifests = [
           var.values.gateway_api_std,
@@ -174,7 +267,6 @@ data "talos_machine_configuration" "this" {
           var.values.kube-metric_server,
           var.values.local-storage_class
         ]
-        //Inline Manifests
         inlineManifests = [
           {
             name     = "cilium-and-talos-ccm-deploy"
@@ -265,7 +357,7 @@ data "talos_machine_configuration" "this" {
                           --set k8sServicePort=7445 \
                           --set k8sClientRateLimit.qps=50 \
                           --set k8sClientRateLimit.burst=200 \
-                          --set cluster.name=evo-cluster-std \
+                          --set cluster.name=evo-cluster-mgr \
                           --set cluster.id=0 \
                           --set rollOutCiliumPods=true \
                           --set securityContext.capabilities.ciliumAgent="{CHOWN,KILL,NET_ADMIN,NET_RAW,IPC_LOCK,SYS_ADMIN,SYS_RESOURCE,DAC_OVERRIDE,FOWNER,SETGID,SETUID}" \
@@ -576,32 +668,135 @@ data "talos_machine_configuration" "this" {
   ]
 }
 
-resource "talos_machine_configuration_apply" "this" {
-  for_each                    = var.values.evok8s_aio
+#-----------------------------------------------------
+## Generate Talos Worker Machine Configuration
+#-----------------------------------------------------
+data "talos_machine_configuration" "worker" {
+  for_each = var.values.evok8s_clusters
 
-  #depends_on = [data.talos_machine_configuration.this[each.key]]
-  client_configuration        = talos_machine_secrets.this[each.key].client_configuration
-  machine_configuration_input = data.talos_machine_configuration.this[each.key].machine_configuration
-  endpoint                    = hcloud_server.this[each.key].ipv4_address
-  node                        = hcloud_server.this[each.key].ipv4_address
+  cluster_name       = each.value.cluster_name
+  cluster_endpoint   = "https://${hcloud_server.controlplane["${each.value.vm_name_prefix}-cp01"].ipv4_address}:6443"
+  machine_type       = "worker"
+  machine_secrets    = talos_machine_secrets.this[each.key].machine_secrets
+  talos_version      = each.value.talos_version
+  kubernetes_version = each.value.k8s_version
+  docs               = false
+  examples           = false
+
+  #config_patches = concat(
+  #  [for path in var.worker_config_patch_files : file(path)]
+  #)
+  config_patches = [
+    yamlencode({
+      machine = {
+        network = {
+          nameservers = each.value.talos_nameservers
+        }
+        kubelet = {
+          extraArgs = {
+            cloud-provider = "external"
+            rotate-server-certificates = true
+          }
+        }
+        install = {
+          extraKernelArgs = ["talos.dashboard.disabled=1"]
+        }
+        systemDiskEncryption = {
+          ephemeral = {
+            provider = "luks2"
+            options = ["no_read_workqueue", "no_write_workqueue"]
+            keys = [
+              {
+                nodeID = {}
+                slot = 0
+              }
+            ]
+          }
+          state = {
+            provider = "luks2"
+            options = ["no_read_workqueue", "no_write_workqueue"]
+            keys = [
+              {
+                nodeID = {}
+                slot = 0
+              }
+            ]
+          }
+        }
+      }
+      cluster = {
+        network = {
+          cni = {
+            name = "none"
+          }
+          dnsDomain = each.value.cluster_domain
+          podSubnets = [each.value.k8s_pod_cidr]
+          serviceSubnets = [each.value.k8s_service_cidr]
+        }
+      }
+    }),
+  ]
 }
 
-## Start the bootstraping of the Talos Kubernetes Cluster
-resource "talos_machine_bootstrap" "this" {
-  for_each                   = var.values.evok8s_aio
-  #depends_on           = [talos_machine_configuration_apply.controlplane]
+#-----------------------------------------------------
+# Apply Talos Controlplane Machine Configuration
+#-----------------------------------------------------
+## Give time for controlplane nodes readiness
+resource "time_sleep" "timer" {
+  create_duration = "30s"
+  depends_on = [hcloud_server.controlplane, data.talos_machine_configuration.controlplane]
+}
 
-  client_configuration      = talos_machine_secrets.this[each.key].client_configuration
-  endpoint                  = hcloud_server.this[each.key].ipv4_address
-  node                      = hcloud_server.this[each.key].ipv4_address
+## Apply Talos Machine Configuration to controlplane nodes
+resource "talos_machine_configuration_apply" "controlplane" {
+  for_each                    = hcloud_server.controlplane
+  depends_on                  = [time_sleep.timer]
+
+  client_configuration        = talos_machine_secrets.this[each.value.labels.cluster].client_configuration
+  machine_configuration_input = data.talos_machine_configuration.controlplane[each.value.labels.cluster].machine_configuration
+  endpoint                    = each.value.ipv4_address
+  node                        = each.value.ipv4_address
+}
+
+#-----------------------------------------------------
+# Apply Talos Worker Machine Configuration
+#-----------------------------------------------------
+resource "talos_machine_configuration_apply" "worker" {
+  for_each                    = hcloud_server.worker
+  depends_on                  = [talos_machine_configuration_apply.controlplane]
+
+  client_configuration        = talos_machine_secrets.this[each.value.labels.cluster].client_configuration
+  machine_configuration_input = data.talos_machine_configuration.worker[each.value.labels.cluster].machine_configuration
+  endpoint                    = each.value.ipv4_address
+  node                        = each.value.ipv4_address
+}
+
+#---------------------------------------------------------
+# Start the bootstraping of the Talos Kubernetes Cluster
+#---------------------------------------------------------
+## Avoid race condition between talos_machine_configuration_apply and bootstrapping
+resource "time_sleep" "timer2" {
+  create_duration = "30s"
+  depends_on = [talos_machine_configuration_apply.controlplane]
+}
+
+## Bootstrapping is only done on one Controlplane node
+resource "talos_machine_bootstrap" "this" {
+  for_each                   = var.values.evok8s_clusters
+  depends_on                 = [talos_machine_configuration_apply.controlplane, time_sleep.timer2]
+
+  client_configuration       = talos_machine_secrets.this[each.key].client_configuration
+  endpoint                   = hcloud_server.controlplane["${each.value.vm_name_prefix}-cp01"].ipv4_address
+  node                       = hcloud_server.controlplane["${each.value.vm_name_prefix}-cp01"].ipv4_address
+  timeouts                   = { create = "5m" }
 }
 
 ## Collect the Talos Kubeconfig
 resource "talos_cluster_kubeconfig" "kubeconfig" {
-  for_each                  = var.values.evok8s_aio
+  for_each                  = var.values.evok8s_clusters
   depends_on                = [ talos_machine_bootstrap.this ]
 
   client_configuration = talos_machine_secrets.this[each.key].client_configuration
-  endpoint             = hcloud_server.this[each.key].ipv4_address
-  node                 = hcloud_server.this[each.key].ipv4_address
+  endpoint             = hcloud_server.controlplane["${each.value.vm_name_prefix}-cp01"].ipv4_address
+  node                 = hcloud_server.controlplane["${each.value.vm_name_prefix}-cp01"].ipv4_address
 }
