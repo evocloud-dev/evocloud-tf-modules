@@ -46,7 +46,7 @@ resource "hcloud_server" "this" {
       "managed-by"  = "EvoCloud"
     },
     {{- if $.Values.hcloud_servers.tags }}
-    each.tags
+    each.value.tags
     {{- end }}
   )
 
