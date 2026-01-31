@@ -357,7 +357,7 @@ data "talos_machine_configuration" "controlplane" {
                           --set k8sServicePort=7445 \
                           --set k8sClientRateLimit.qps=50 \
                           --set k8sClientRateLimit.burst=200 \
-                          --set cluster.name=evo-cluster-mgr \
+                          --set cluster.name=evok8s-hub-cluster \
                           --set cluster.id=0 \
                           --set rollOutCiliumPods=true \
                           --set securityContext.capabilities.ciliumAgent="{CHOWN,KILL,NET_ADMIN,NET_RAW,IPC_LOCK,SYS_ADMIN,SYS_RESOURCE,DAC_OVERRIDE,FOWNER,SETGID,SETUID}" \
@@ -504,7 +504,7 @@ data "talos_machine_configuration" "controlplane" {
                           helm upgrade --install flux-operator oci://ghcr.io/controlplaneio-fluxcd/charts/flux-operator \
                             --namespace flux-system \
                             --create-namespace \
-                            --version 0.38.1 \
+                            --version 0.40.0 \
                             --wait
                     restartPolicy: OnFailure
                     serviceAccount: flux-install

@@ -30,11 +30,31 @@ variable "values" {
 
   #Variable validation logic
   validation {
+    condition = length(distinct([for evok8s in var.values.evok8s_clusters : evok8s.cluster_name ])) == length(var.values.evok8s_clusters)
+    error_message = "EvoK8s Clusters must have a unique cluster_name."
+  }
+
+  validation {
     condition = alltrue([
       for evok8s in var.values.evok8s_clusters : contains([
         "fsn1", "nbg1", "hel1", "ash", "hil", "sin"
       ], evok8s.zone_location)
     ])
     error_message = "zone_location must be one of: 'fsn1' (Falkenstein), 'nbg1' (Nuremberg), 'hel1' (Helsinki), 'ash' (Ashburn), 'hil' (Hillsboro), 'sin' (Singapore)."
+  }
+
+  validation {
+    condition     = alltrue([for evok8s in var.values.evok8s_clusters : evok8s.control_compute_count <= 5 ])
+    error_message = "Controlplane nodes (control_compute_count) should not exceed 5."
+  }
+
+  validation {
+    condition     = alltrue([for evok8s in var.values.evok8s_clusters : evok8s.control_compute_count % 2 == 1 ])
+    error_message = "Controlplane nodes count (compute_compute_count) must be an odd number(1, 3, or 5) to prevent a split-brain scenario."
+  }
+
+  validation {
+    condition     = alltrue([for evok8s in var.values.evok8s_clusters : evok8s.worker_compute_count <= 99 ])
+    error_message = "Worker nodes (worker_compute_count) should not exceed 99."
   }
 }
