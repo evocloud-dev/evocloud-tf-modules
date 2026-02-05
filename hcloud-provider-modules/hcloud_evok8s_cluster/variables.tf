@@ -10,12 +10,13 @@ variable "values" {
       k8s_service_cidr        = optional(string, "10.96.0.0/12")
       vm_name_prefix          = optional(string, "evok8s")
       MACHINE_IMAGE           = string
-      worker_compute_count    = number
-      worker_compute_flavor   = string
       control_compute_flavor  = string
       control_compute_count   = number
-      enable_public_ip        = optional(bool, true)#COMEBACK TO THIS
+      worker_compute_flavor   = string
+      worker_compute_count    = number
       zone_location           = string
+      VPC_ID                  = number
+      vpc_gateway_ip          = optional(string)
       SECURITY_GROUP_IDS      = optional(list(string))
       tags                    = optional(map(string))
     })))
