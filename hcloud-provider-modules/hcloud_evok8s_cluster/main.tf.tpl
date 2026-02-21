@@ -1,37 +1,3 @@
-#--------------------------------------------------
-# Set locals for better variable manipulation
-#--------------------------------------------------
-locals {
-  # A flat list of all desired control_plane_nodes
-  control_plane_nodes = {
-    for cp_node in flatten([
-      for k, v in var.values.evok8s_clusters : [
-        for i in range(v.control_compute_count) : {
-          key           = "${v.vm_name_prefix}-cp0${i + 1}"
-          index         = i
-          cluster_key   = k
-          cluster_data  = v
-        }
-      ]
-    ]) : cp_node.key => cp_node
-  }
-
-  # A flat list of all desired worker_nodes
-  worker_nodes = {
-    for wk_node in flatten([
-      for k, v in var.values.evok8s_clusters : [
-        for i in range(v.worker_compute_count) : {
-          key           = "${v.vm_name_prefix}-wk0${i + 1}"
-          index         = i
-          cluster_key   = k
-          cluster_data  = v
-        }
-      ]
-    ]) : wk_node.key => wk_node
-  }
-
-}
-
 #############################################################################
 # HCLOUD_LOAD_BALANCER Resource
 #############################################################################
@@ -215,7 +181,7 @@ data "talos_machine_configuration" "controlplane" {
   for_each = var.values.evok8s_clusters
 
   cluster_name       = each.value.cluster_name
-  cluster_endpoint   = "https://${hcloud_load_balancer.this[each.key].ipv4}:6443"
+  cluster_endpoint   = "https://${hcloud_load_balancer.this[each.key].ipv4}:${local.k8s_api_port}"
   machine_type       = "controlplane"
   machine_secrets    = talos_machine_secrets.this[each.key].machine_secrets
   talos_version      = each.value.talos_version
@@ -336,6 +302,10 @@ data "talos_machine_configuration" "controlplane" {
             }
           }
         }
+        #This tells Talos that an external CCM will handle node networking/labels
+        externalCloudProvider = {
+          enabled = true
+        }
         //Extra Manifests
         extraManifests = [
           var.values.gateway_api_std,
@@ -354,7 +324,7 @@ data "talos_machine_configuration" "controlplane" {
               metadata:
                 name: cilium-install
                 annotations:
-                  ttl.after.delete: "86400s" #Automatically deletes CRB after 24 hours (86400 seconds)
+                  ttl.after.delete: "3600s"
               roleRef:
                 apiGroup: rbac.authorization.k8s.io
                 kind: ClusterRole
@@ -370,7 +340,7 @@ data "talos_machine_configuration" "controlplane" {
                 name: cilium-install-sa
                 namespace: kube-system
                 annotations:
-                  ttl.after.delete: "86400s" #Automatically deletes SA after 24 hours (86400 seconds)
+                  ttl.after.delete: "3600s"
               ---
               apiVersion: batch/v1
               kind: Job
@@ -428,13 +398,14 @@ data "talos_machine_configuration" "controlplane" {
                           helm repo add cilium https://helm.cilium.io/
                           helm repo update
                           helm upgrade --install cilium cilium/cilium \
-                          --version 1.18.6 \
+                          --version 1.19.0 \
                           --namespace kube-system \
                           --set k8sServiceHost=localhost \
                           --set k8sServicePort=7445 \
+                          --set operator.replicas=2 \
                           --set k8sClientRateLimit.qps=50 \
                           --set k8sClientRateLimit.burst=200 \
-                          --set cluster.name=evok8s-hub-cluster \
+                          --set cluster.name=${each.value.cluster_name} \
                           --set cluster.id=0 \
                           --set rollOutCiliumPods=true \
                           --set securityContext.capabilities.ciliumAgent="{CHOWN,KILL,NET_ADMIN,NET_RAW,IPC_LOCK,SYS_ADMIN,SYS_RESOURCE,DAC_OVERRIDE,FOWNER,SETGID,SETUID}" \
@@ -453,6 +424,7 @@ data "talos_machine_configuration" "controlplane" {
                           --set kubeProxyReplacement=true \
                           --set maglev.tableSize=65521 \
                           --set operator.rollOutPods=true \
+                          --set hubble.enabled=false \
                           --set cgroup.autoMount.enabled=false \
                           --set cgroup.hostRoot=/sys/fs/cgroup \
                           --set envoy.securityContext.capabilities.envoy="{NET_ADMIN,NET_BIND_SERVICE,PERFMON,BPF}" \
@@ -462,15 +434,7 @@ data "talos_machine_configuration" "controlplane" {
                     hostNetwork: true
             EOT
           },
-          {
-            name     = "evocloud-ns"
-            contents = <<-EOT
-              apiVersion: v1
-              kind: Namespace
-              metadata:
-                name: evocloud-ns
-            EOT
-          },
+          local.evocloud_namespace_manifest,
           {
             name     = "kubevela-helm-deploy"
             contents = <<-EOT
@@ -480,7 +444,7 @@ data "talos_machine_configuration" "controlplane" {
               metadata:
                 name: kubevela-install
                 annotations:
-                  ttl.after.delete: "86400s" #Automatically deletes CRB after 24 hours (86400 seconds)
+                  ttl.after.delete: "3600s" #Automatically deletes CRB after 1 hour (3600 seconds)
               roleRef:
                 apiGroup: rbac.authorization.k8s.io
                 kind: ClusterRole
@@ -496,7 +460,7 @@ data "talos_machine_configuration" "controlplane" {
                 name: vela-install
                 namespace: kube-system
                 annotations:
-                  ttl.after.delete: "86400s" #Automatically deletes SA after 24 hours (86400 seconds)
+                  ttl.after.delete: "3600s" #Automatically deletes SA after 1 hour (3600 seconds)
               ---
               apiVersion: batch/v1
               kind: Job
@@ -539,7 +503,7 @@ data "talos_machine_configuration" "controlplane" {
               metadata:
                 name: flux-install
                 annotations:
-                  ttl.after.delete: "86400s" #Automatically deletes CRB after 24 hours (86400 seconds)
+                  ttl.after.delete: "3600s" #Automatically deletes CRB after 1 hour (3600 seconds)
               roleRef:
                 apiGroup: rbac.authorization.k8s.io
                 kind: ClusterRole
@@ -555,7 +519,7 @@ data "talos_machine_configuration" "controlplane" {
                 name: flux-install
                 namespace: kube-system
                 annotations:
-                  ttl.after.delete: "86400s" #Automatically deletes SA after 24 hours (86400 seconds)
+                  ttl.after.delete: "3600s" #Automatically deletes SA after 1 hour (3600 seconds)
               ---
               #https://operatorhub.io/operator/flux-operator
               apiVersion: batch/v1
@@ -581,7 +545,7 @@ data "talos_machine_configuration" "controlplane" {
                           helm upgrade --install flux-operator oci://ghcr.io/controlplaneio-fluxcd/charts/flux-operator \
                             --namespace flux-system \
                             --create-namespace \
-                            --version 0.40.0 \
+                            --version 0.41.0 \
                             --wait
                     restartPolicy: OnFailure
                     serviceAccount: flux-install
@@ -656,6 +620,7 @@ data "talos_machine_configuration" "controlplane" {
                       name: tofu-controller-stable
                     version: ">=0.16.0-rc.8"
                 interval: 1h0s
+                timeout: 15m
                 releaseName: tofu-controller
                 targetNamespace: flux-system
                 install:
@@ -682,6 +647,97 @@ data "talos_machine_configuration" "controlplane" {
                   caCertValidityDuration: 24h
                   certRotationCheckFrequency: 60m
               ---
+              ############################################
+              #DEPLOYING HCLOUD CLUSTER CONTROLLER
+              ############################################
+              # https://github.com/hetznercloud/hcloud-cloud-controller-manager/tree/main/chart
+              # Hcloud secret
+              apiVersion: v1
+              kind: Secret
+              metadata:
+                name: hcloud
+                namespace: flux-system
+              type: Opaque
+              stringData:
+                token: ${var.values.hcloud_token}
+                network: "${each.value.VPC_ID}"
+              ---
+              #Hcloud-CCM helm repository object
+              apiVersion: source.toolkit.fluxcd.io/v1
+              kind: HelmRepository
+              metadata:
+                name: hcloud-ccm-stable
+                namespace: flux-system
+              spec:
+                interval: 24h
+                url: https://charts.hetzner.cloud
+              ---
+              #Hcloud-CCM deploy logic
+              apiVersion: helm.toolkit.fluxcd.io/v2
+              kind: HelmRelease
+              metadata:
+                name: hcloud-ccm-controller
+                namespace: flux-system
+              spec:
+                chart:
+                  spec:
+                    chart: hcloud-cloud-controller-manager
+                    sourceRef:
+                      kind: HelmRepository
+                      name: hcloud-ccm-stable
+                    version: ">=1.30.1"
+                interval: 1h0s
+                timeout: 15m
+                releaseName: hcloud-ccm-controller
+                targetNamespace: flux-system
+                install:
+                  crds: Create
+                  remediation:
+                    retries: 3
+                upgrade:
+                  crds: CreateReplace
+                  remediation:
+                    retries: 3
+                driftDetection:
+                  mode: enabled
+                values:
+                  networking:
+                    enabled: true
+                    clusterCIDR: ${each.value.k8s_pod_cidr}
+              ---
+              #Hcloud-CSI deploy logic
+              # https://github.com/hetznercloud/csi-driver/tree/main/chart
+              apiVersion: helm.toolkit.fluxcd.io/v2
+              kind: HelmRelease
+              metadata:
+                name: hcloud-csi
+                namespace: flux-system
+              spec:
+                chart:
+                  spec:
+                    chart: hcloud-csi
+                    sourceRef:
+                      kind: HelmRepository
+                      name: hcloud-ccm-stable
+                    version: ">=2.19.1"
+                interval: 1h0s
+                timeout: 15m
+                releaseName: hcloud-csi
+                targetNamespace: flux-system
+                install:
+                  crds: Create
+                  remediation:
+                    retries: 3
+                upgrade:
+                  crds: CreateReplace
+                  remediation:
+                    retries: 3
+                driftDetection:
+                  mode: enabled
+                values:
+                  controller:
+                    replicaCount: 1
+              ---
             EOT
           },
           {
@@ -693,7 +749,7 @@ data "talos_machine_configuration" "controlplane" {
               metadata:
                 name: kubevela-ui-install
                 annotations:
-                  ttl.after.delete: "86400s" #Automatically deletes CRB after 24 hours (86400 seconds)
+                  ttl.after.delete: "3600s"
               roleRef:
                 apiGroup: rbac.authorization.k8s.io
                 kind: ClusterRole
@@ -709,7 +765,7 @@ data "talos_machine_configuration" "controlplane" {
                 name: vela-ui-install
                 namespace: kube-system
                 annotations:
-                  ttl.after.delete: "86400s" #Automatically deletes SA after 24 hours (86400 seconds)
+                  ttl.after.delete: "3600s" #Automatically deletes SA after 1 hour (3600 seconds)
               ---
               apiVersion: batch/v1
               kind: Job
@@ -851,4 +907,18 @@ resource "talos_cluster_kubeconfig" "kubeconfig" {
   client_configuration = talos_machine_secrets.this[each.key].client_configuration
   endpoint             = hcloud_load_balancer.this[each.key].ipv4
   node                 = hcloud_load_balancer.this[each.key].ipv4
+}
+
+## Validate Kubernetes endpoint is up
+data "http" "k8s_health_check" {
+  for_each       = var.values.evok8s_clusters
+  depends_on     = [ talos_machine_bootstrap.this ]
+
+  url            = "https://${hcloud_load_balancer.this[each.key].ipv4}:${local.k8s_api_port}/version"
+  insecure       = true
+  retry {
+    attempts     = 60
+    min_delay_ms = 5000
+    max_delay_ms = 5000
+  }
 }

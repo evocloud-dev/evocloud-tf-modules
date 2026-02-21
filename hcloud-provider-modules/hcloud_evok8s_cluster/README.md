@@ -33,6 +33,9 @@ spec:
     kind: OCIRepository
     name: evocloud-tf-modules-hcloud
   approvePlan: auto
+  #tfstate:
+  #  forceUnlock: "yes"
+  #  lockIdentifier: d8bc75bd-c573-42a1-db79-7bc2ab74c556
   retryInterval: 10s
   interval: 15m
   destroyResourcesOnDeletion: true
@@ -92,6 +95,9 @@ spec:
     kind: OCIRepository
     name: evocloud-tf-modules-hcloud
   approvePlan: auto
+  #tfstate:
+  #  forceUnlock: "yes"
+  #  lockIdentifier: d8bc75bd-c573-42a1-db79-7bc2ab74c556
   retryInterval: 10s
   interval: 15m
   destroyResourcesOnDeletion: true

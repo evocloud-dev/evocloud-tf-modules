@@ -27,6 +27,8 @@ variable "values" {
     kube-metric_server    = optional(string, "https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml")
     local-storage_class   = optional(string, "https://raw.githubusercontent.com/evocloud-dev/evocloud-k8s-manifests/refs/heads/main/local-storageclass.yaml")
 
+    hcloud_token          = optional(string)
+
   })
 
   #Variable validation logic

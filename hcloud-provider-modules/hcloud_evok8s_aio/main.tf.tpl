@@ -275,6 +275,7 @@ data "talos_machine_configuration" "this" {
                           --namespace kube-system \
                           --set k8sServiceHost=localhost \
                           --set k8sServicePort=7445 \
+                          --set operator.replicas=1 \
                           --set k8sClientRateLimit.qps=50 \
                           --set k8sClientRateLimit.burst=200 \
                           --set cluster.name=evo-cluster-std \
