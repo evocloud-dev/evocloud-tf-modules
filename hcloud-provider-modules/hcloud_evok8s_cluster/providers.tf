@@ -14,6 +14,10 @@ provider "time" {
   # Configuration options
 }
 
+provider "http" {
+  # Configuration options
+}
+
 #--------------------------------------------------
 # Tfstate Remote State Storage
 #--------------------------------------------------
