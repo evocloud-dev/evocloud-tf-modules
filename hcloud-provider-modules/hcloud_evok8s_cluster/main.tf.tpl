@@ -734,9 +734,6 @@ data "talos_machine_configuration" "controlplane" {
                     retries: 3
                 driftDetection:
                   mode: enabled
-                values:
-                  controller:
-                    replicaCount: 1
               ---
             EOT
           },
