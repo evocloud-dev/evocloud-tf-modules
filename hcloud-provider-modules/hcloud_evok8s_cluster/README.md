@@ -14,6 +14,7 @@ metadata:
 spec:
   path: hcloud_evok8s_cluster
   values:
+    hcloud_token: "XXXXXXXXXXXXXXXXXXXX"
     evok8s_clusters: {
       cluster01: {
         cluster_name: "evok8s-cluster01",
@@ -61,6 +62,7 @@ metadata:
 spec:
   path: hcloud_evok8s_cluster
   values:
+    hcloud_token: "XXXXXXXXXXXXXXXXXXXX"
     evok8s_clusters: {
       cluster01: {
         cluster_name: "evok8s-cluster01",

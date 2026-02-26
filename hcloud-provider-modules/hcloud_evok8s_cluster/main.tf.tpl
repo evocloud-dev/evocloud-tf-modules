@@ -91,7 +91,7 @@ resource "hcloud_server" "controlplane" {
   # Firewall attached to the VM_SERVER
   firewall_ids = coalesce(each.value.cluster_data.SECURITY_GROUP_IDS, [])
 
-  # Apply controlplane configuration as user-data
+  # Apply controlplane configuration as user-data. Only supports 32Kb of data
   user_data = data.talos_machine_configuration.controlplane[each.value.cluster_key].machine_configuration
 
   # no space separator in the key or value
@@ -545,7 +545,7 @@ data "talos_machine_configuration" "controlplane" {
                           helm upgrade --install flux-operator oci://ghcr.io/controlplaneio-fluxcd/charts/flux-operator \
                             --namespace flux-system \
                             --create-namespace \
-                            --version 0.41.0 \
+                            --version 0.42.1 \
                             --wait
                     restartPolicy: OnFailure
                     serviceAccount: flux-install
@@ -563,7 +563,7 @@ data "talos_machine_configuration" "controlplane" {
                   fluxcd.controlplane.io/reconcileTimeout: "20m"
               spec:
                 distribution:
-                  version: "2.7.x"
+                  version: "2.8.x"
                   registry: "ghcr.io/fluxcd"
                   artifact: "oci://ghcr.io/controlplaneio-fluxcd/flux-operator-manifests"
                 components:
@@ -592,9 +592,8 @@ data "talos_machine_configuration" "controlplane" {
                           path: /spec/template/spec/containers/0/args/-
                           value: --requeue-dependency=15s
               ---
-              ############################################
+              ################################
               #DEPLOYING TOFU FLUX CONTROLLER
-              ############################################
               #Tofu-repo helm repository object
               apiVersion: source.toolkit.fluxcd.io/v1
               kind: HelmRepository
@@ -647,9 +646,8 @@ data "talos_machine_configuration" "controlplane" {
                   caCertValidityDuration: 24h
                   certRotationCheckFrequency: 60m
               ---
-              ############################################
+              ####################################
               #DEPLOYING HCLOUD CLUSTER CONTROLLER
-              ############################################
               # https://github.com/hetznercloud/hcloud-cloud-controller-manager/tree/main/chart
               # Hcloud secret
               apiVersion: v1
@@ -700,10 +698,6 @@ data "talos_machine_configuration" "controlplane" {
                     retries: 3
                 driftDetection:
                   mode: enabled
-                values:
-                  networking:
-                    enabled: true
-                    clusterCIDR: ${each.value.k8s_pod_cidr}
               ---
               #Hcloud-CSI deploy logic
               # https://github.com/hetznercloud/csi-driver/tree/main/chart
@@ -713,6 +707,8 @@ data "talos_machine_configuration" "controlplane" {
                 name: hcloud-csi
                 namespace: flux-system
               spec:
+                dependsOn:
+                  - name: hcloud-ccm-controller
                 chart:
                   spec:
                     chart: hcloud-csi
@@ -734,6 +730,71 @@ data "talos_machine_configuration" "controlplane" {
                     retries: 3
                 driftDetection:
                   mode: enabled
+              ---
+              #############################
+              #DEPLOYING CLUSTER AUTOSCALER
+              #Cluster autoscaler helm repository object: https://github.com/kubernetes/autoscaler/tree/master/cluster-autoscaler/charts/cluster-autoscaler
+              apiVersion: source.toolkit.fluxcd.io/v1
+              kind: HelmRepository
+              metadata:
+                name: cluster-autoscaler-stable
+                namespace: flux-system
+              spec:
+                interval: 24h
+                url: https://kubernetes.github.io/autoscaler
+              ---
+              #Cluster-autoscaler deployment logic
+              apiVersion: helm.toolkit.fluxcd.io/v2
+              kind: HelmRelease
+              metadata:
+                name: cluster-autoscaler
+                namespace: flux-system
+              spec:
+                chart:
+                  spec:
+                    chart: cluster-autoscaler
+                    sourceRef:
+                      kind: HelmRepository
+                      name: cluster-autoscaler-stable
+                    version: ">=9.55.1"
+                interval: 1h0s
+                timeout: 15m
+                releaseName: cluster-autoscaler
+                targetNamespace: flux-system
+                install:
+                  crds: Create
+                  remediation:
+                    retries: 3
+                upgrade:
+                  crds: CreateReplace
+                  remediation:
+                    retries: 3
+                driftDetection:
+                  mode: enabled
+                values:
+                  cloudProvider: hetzner
+                  replicaCount: 1
+                  nodeSelector:
+                    node-role.kubernetes.io/control-plane: ""
+                  tolerations:
+                    - key: "node-role.kubernetes.io/control-plane"
+                      effect: "NoSchedule"
+                      operator: "Exists"
+                  autoscalingGroups:
+                    - name: autoscaler-group-01
+                      minSize: 1
+                      maxSize: 99
+                      instanceType: ${each.value.worker_compute_flavor}
+                      region: ${each.value.zone_location}
+                  extraEnv:
+                    HCLOUD_SERVER_CREATION_TIMEOUT: "10"
+                    HCLOUD_PUBLIC_IPV4: "true"
+                    HCLOUD_PUBLIC_IPV6: "false"
+                    HCLOUD_NETWORK: "${each.value.VPC_ID}"
+                  extraEnvSecrets:
+                    HCLOUD_TOKEN:
+                      name: hcloud
+                      key: token
               ---
             EOT
           },
@@ -880,6 +941,16 @@ data "talos_machine_configuration" "worker" {
       }
     }),
   ]
+}
+
+#---------------------------------------------------------
+# Convert Talos Machine Worker Configuration into base64
+#---------------------------------------------------------
+locals {
+  talos_machine_config_base64 = {
+    for k, cfg in data.talos_machine_configuration.worker :
+    k => base64encode(cfg.machine_configuration)
+  }
 }
 
 #---------------------------------------------------------
